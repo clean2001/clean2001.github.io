@@ -105,8 +105,8 @@ analytics:
 # Site Author
 author:
   name             : "clean01"
-  avatar           : # path of avatar image, e.g. "/assets/images/bio-photo.jpg"
-  bio              : hello"
+  avatar           : "/assets/images/icon.jfif"
+  bio              : "hello"
   location         : "Seoul, Republic of Korea"
   email            :
   links:
