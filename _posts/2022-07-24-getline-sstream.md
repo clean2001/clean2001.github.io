@@ -1,7 +1,7 @@
 ---
 layout: single
 title: "[C++] getline()과 stringstream을 이용해서 string을 split하기 "
-categories: BOJ
+categories: 조각
 tags: string cpp c++ 문자열 getline() sstream split
 ---
 
