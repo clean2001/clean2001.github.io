@@ -51,3 +51,8 @@ void file_close_database_file();
 #endif  // DB_FILE_H_
 
 ```
+
+### Design
+
++ int file_open_database_file(const char* pathname)
+얘는 파일을 열어주는 함수이다. 파일은 open 시스템 콜로 열고, 반환 값인 fd(file descriptor)를 이용해서 파일에 대한 작업들을 하면 된다. 명세에 따르면 파일이 이미 있다면 그 파일을 열고, 파일이 없다면 10MiB짜리 파일을 생성해서 열라고 되어있다. 
