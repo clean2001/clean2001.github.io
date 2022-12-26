@@ -11,3 +11,43 @@ tags: DBMS 데베시 데이터베이스 과제 형베시
 ###  
 
 ### Disk Space Manager
+DBMS는 DB 파일을 Disk에 저장해놓고, page 단위로  RAM으로 가져와서 데이터에 접근을 한다. disk space manager는 말 그대로 디스크에 있는 DB 파일을 관리해 주는 역할을 한다. disk를 뭘 어떻게 관리하냐면, DB 파일을 page 단위(이 과제에서는 4096 bytes)로 나눠서 관리를 하는데 date가 들어가 있는, 즉 쓰이고 있는 페이지를 allocated page, 현재 쓰이지 않고 있는 페이지를 free page라고 한다. 만약 데이터가 계속 insert 돼서 현재 allocated page에 다 담을 수 없게 되면 놀고 있는 free page를 allocated page로 바꿔주고, 데이터가 계속 delete 돼서 allocated page에 아무 정보도 남아있지 않게 되면 그 페이지를 free page로 바꿔주는 식으로 디스크 공간을 관리해주는 것이다. 만약 많은 양의 데이터가 들어와서 현재 DB file이 데이터를 다 담을 수 없게 되면 file의 크기를 늘려주는 역할도 한다.
+
+###   
+
+### APIs
+아래는 disk space manager에서 구현해야하는 API들이다. 
+
+```cpp
+#ifndef DB_FILE_H_
+#define DB_FILE_H_
+
+#include <stdint.h>
+#include <iostream>
+#include <vector>
+
+// These definitions are not requirements.
+// You may build your own way to handle the constants.
+#define INITIAL_DB_FILE_SIZE (10 * 1024 * 1024)  // 10 MiB
+#define PAGE_SIZE (4 * 1024)                     // 4 KiB
+
+// Open existing database file or create one if it doesn't exist
+int file_open_database_file(const char* pathname);
+
+// Allocate an on-disk page from the free page list
+pagenum_t file_alloc_page(int fd);
+
+// Free an on-disk page to the free page list
+void file_free_page(int fd, pagenum_t pagenum);
+
+// Read an on-disk page into the in-memory page structure(dest)
+void file_read_page(int fd, pagenum_t pagenum, struct page_t* dest);
+
+// Write an in-memory page(src) to the on-disk page
+void file_write_page(int fd, pagenum_t pagenum, const struct page_t* src);
+
+// Close the database file
+void file_close_database_file();
+#endif  // DB_FILE_H_
+
+```
