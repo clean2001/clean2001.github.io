@@ -54,5 +54,144 @@ void file_close_database_file();
 
 ### Design
 
++ 전체적인 디자인
+내 Disk Space Manager는 heap file 구조이다.
+구글에서 검색하다가 본건데, [여기] (https://wkdtjsgur100.github.io/db-summary/)에 file organization이 엄청 잘 정리되어 있다.
+
+어차피 다음 마일스톤에서 B+ tree를 올리니까 heap file을 쓰는게 제일 낫지 않을까..? 싶다,,
+
+우선 처음 파일이 만들어지면, 10MiB(1024 * 1024 * 10) / 4096 bytes 이므로 총 2560개의 free pages가 생성된다.
+free page들은 next_free_page_num이라는 필드를 가지고 있고 여기에는 다음 free page의 번호가 들어간다. (linked list처럼 free page들이 연결되어 있는 것이다.)
+
+처음 file을 만들 때, header page(page_num: 0)의 next_free_page_num은 2559(physically 마지막 페이지 번호)이고, 2559 페이지는 2558, 2558은 2557 페이지를 가리키도록 했다.
+그러면 1번 페이지는 0번 페이지를 가리키는데, next_free_page_num이 0이라는 것은 logically 마지막 free page임을 의미한다.
+이를 그림으로 나타내면 아래와 같다.
+
+![pic 1] (./image/diskmanager1)
+
+그러면 이 상태에서 file_alloc_page()를 호출하면 어떻게 될까?
+header page가 가리키는 free page가 가장 먼저 alloc되므로 다음 그림과 같은 상태가 된다.
+
+![pic 2] (./image/diskmanager2)
+
+한 번 더 alloc하면
+
+![pic 3] (./image/diskmanager3)
+
+이렇게 됨.
+
+그리고 여기서 2559번 페이지를 free 시켜주면 어떻게 될까?
+그냥 header page가 방금 free가 된 페이지(여기서는 2559번)을 가리키고, free가 된 페이지는 header page가 가리키고 있던 free page를 가리키면 된다.
+이를 그림으로 나타내면 이렇다.
+
+![pic 4] (./image/diskmanager4)
+
+file을 처음 만들 때는 항상 페이지 번호가 1 큰 애가 1 작은 애를 가리키고 있었는데, alloc, free가 반복되면 페이지 번호가 작은 애가 큰 애를 가리키는 등 순서가 섞일 수 있다.
+
+
+
 + int file_open_database_file(const char* pathname)
-얘는 파일을 열어주는 함수이다. 파일은 open 시스템 콜로 열고, 반환 값인 fd(file descriptor)를 이용해서 파일에 대한 작업들을 하면 된다. 명세에 따르면 파일이 이미 있다면 그 파일을 열고, 파일이 없다면 10MiB짜리 파일을 생성해서 열라고 되어있다. 
+얘는 파일을 열어주는 함수이다. 파일은 open 시스템 콜로 열고, 반환 값인 fd(file descriptor)를 이용해서 파일에 대한 작업들을 하면 된다. 명세에 따르면 파일이 이미 있다면 그 파일을 열고, 파일이 없다면 10MiB짜리 파일을 생성해서 열라고 되어있다. open()에 O_CREAT라는 옵션을 주면 만약 파일이 없다면 0 byte짜리 파일을 새로 만들어서 여는데, 이 옵션을 주어서 파일이 없다면 무조건 만들고 그 파일의 크기가 0 byte라면 10 MiB로 늘려주는 방법으로 구현을 했다. 파일의 크기는 lseek를 통해서 알 수 있는데 lseek는 파일 내에 있는 커서의 위치를 옮기는 시스템 콜이고 반환 값은 파일 내에서 이동된 커서의 위치가 된다. 그래서 lseek로 커서가 파일의 가장 마지막을 가리키게 하면 그 때 반환 값이 파일의 크기가 된다.
+
+####   
+open을 할때는 아래와 같이 해줬다.
+
+```cpp
+int fd = open(pathname, O_RDWR | O_SYNC | O_CREAT, 0666);
+```
+open 함수의 원형은 이렇게 생겼다.
+
+```cpp
+int open(const char *pathname, int flags, [mode_t mode]);
+```
+
+두 번째 인자에 O_RDWR(읽고 쓸 수 있음), O_SYNC(데이터가 모두 캐시로 전달됨을 보장), O_CREAT(해당 path의 파일이 없다면 새 파일을 만들어서 엶) 이렇게 세 옵션을 주었다.
+세 번째 인자인 mode는 파일의 접근 권한을 결정하는 인자인데, 파일을 의미하는 0666으로 주었다. (디렉토리 0777, 파일 0666 이 두 개가 가장 많이 쓰이는 듯하다.)
+
+O_CREAT 옵션을 주었기에 존재하지 않는 파일을 열면 0 byte짜리 파일을 새로 만들어 연다.
+따라서 만약 열린 파일의 크기가 0이라면 초기 파일의 크기인 10MiB로 파일의 크기를 늘려줘야한다.
+
+파일의 크기는 lseek를 통해 알아낼 수 있다.
+lseek는 파일 디스크립터를 이용해 파일 내의 커서의 위치를 조정하는 시스템 콜이다.
+리턴 값은 이동이 된 커서의 위치인데, 이렇기 때문에 커서의 위치를 파일의 끝을 가리키도록 조정하면 이때의 리턴 값이 파일의 크기가 된다.
+중요한 것은 lseek로 커서의 위치를 파일의 맨 끝으로 옮긴 뒤 반드시 원래 위치로 돌려놓아야한다.
+
+```cpp
+/*calculate file size*/
+off_t current = lseek(fd, (off_t)0, SEEK_CUR);
+off_t end = lseek(fd, (off_t)0, SEEK_END);
+int size_f = end;
+
+lseek(fd, current, SEEK_SET); //back to original place of file discripter
+```
+
++ pagenum_t file_alloc_page(int fd)
+
+alloc, free에 대한 내용은 전체적인 디자인에 써놓은게 다인데, 여기서는 file의 크기가 늘어나는 경우를 설명해야할 것 같다.
+엇... 위에 올려놓은 그림에 그려져 있지 않은데, 사실 logical한 마지막 페이지는 header page를 가리키게 구현해놨다.
+즉, 위 그림으로 치면 free page(1)은 header page를 가리키고 있는거고, 따라서 free page(1)의 next_free_page_num에는 0 값이 들어가있다.
+
+이런 상황에서 위에 써놓은 디자인대로 구현을 하면, 더이상 free page가 남아있지 않을 때, header page의 next_free_page_num에는 0 값이 들어가게 된다.
+따라서 header page의 next_free_page_num가 0이라면, 명세에 있는대로 현재 크기의 2배로 file 크기를 늘려줘야한다.
+
+```cpp
+if(!header.free_page_num) { //free page list is empty
+        printf("debug: free page list is empty\n");
+        /*increase file, make more free pages*/
+        pagenum_t len = header.num_of_pages;
+        printf("debug: len: %ld\n", len);
+
+        page_t first_page;
+        first_page.header.next_free_page = 0; //last free page
+        pwrite(fd, &first_page, PAGE_SIZE, len * PAGE_SIZE);
+        sync();
+
+        for(int i=1; i<len; ++i) {
+            page_t page;
+            page.header.next_free_page = len + i -1;
+            pwrite(fd, &page, PAGE_SIZE, (len + i) * PAGE_SIZE);
+            sync();
+        }
+
+        /*update header*/
+        header.num_of_pages = 2 * len;
+        header.free_page_num = 2 * len - 1;
+
+        printf("file size increased\n");
+        printf("free_page: %d\n", header.free_page_num);
+
+    }
+```
+
+... 지금 보니까 프린트문 안 빼고 냈네...... 흠......
+
+
++ void file_read_page(int fd, pagenum_t pagenum, struct page_t* dest) / void file_write_page(int fd, pagenum_t pagenum, const struct page_t* src)
+
+얘네는 사실 pread, pwrite 딱 한 번 해주면 끝난다.
+(pread, pwrite는 read, write와는 다르게 커서가 움직이지 않는 시스템 콜이다.)
+
+근데 중요한 점은 디스크에 변경사항이 바로 반영됐는지가 평가 기준에 들어간다고 한다.
+그래서 pwrite후에는 무조건 sync()를 넣어줘야한다.
+(이 sync()가 테스트 속도를 느리게 하는 주범이다.)
+
+```cpp
+void file_read_page(int fd, pagenum_t pagenum, struct page_t* dest) {
+    fd = open_table_map[fd];
+
+    pread(fd, dest, PAGE_SIZE, (off_t)pagenum * PAGE_SIZE); //off_t..
+}
+
+void file_write_page(int fd, pagenum_t pagenum, const struct page_t* src) {
+    fd = open_table_map[fd];
+
+    pwrite(fd, src, PAGE_SIZE, (off_t)PAGE_SIZE * pagenum);
+    sync();
+}
+
+```
+
+
+너무 귀찮아서 쓰다말다 했더니 12/26 여행 중에 쓰기 시작한 글을 29일이 돼서야 다 썼다.
+근데 얘가 그나마 제일 내용 없는 편인데 앞으로는 어떻게 쓰지...
+모르겠다... 다음 글은 on disk b+tree에 대해 써보려고 한다.
