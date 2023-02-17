@@ -151,13 +151,10 @@ urllib.request의 urlopen으로 이미지 데이터를 만들어서 loadFromDate
 PokeAPI를 호출해서 랜덤함 포켓몬 정보를 얻어오는 코드는 다른 파일에 따로 정의했다.
 
 어제 알았는데 포켓몬 도감 정보를 무료로 공개한 [PokeAPI](https://pokeapi.co/)가 있다는 것을 처음 알았다..!
-
 심지어 포켓몬뿐만 아니라 열매 정보 같은 것도 있는 것 같음... 뭐 더 있을 거 같은데 뭐가 있는진 제대로 보지 않아서 잘 모르겠다.
-
 심지어 사람들이 여러 언어에서 편하게 쓸 수 있도록 [라이브러리](https://pokeapi.co/docs/v2)를 다 만들어 놨다.
 
 나는 지금 파이썬을 쓰고 있으니까 [Pokebase](https://github.com/PokeAPI/pokebase)를 이용했다.
-
 이런 라이브러리는 어떻게 만드는거지 진짜 존경스럽다...
 
 아무튼 pokebase를 쓰려면 'pip install pokebase'로 설치하고, import pokebase를 한 뒤 쓸 수 있다.
