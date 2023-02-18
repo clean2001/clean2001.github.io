@@ -1,6 +1,6 @@
 ---
 layout: single
-title: "[Today's Pokemon] Today's Pokemon 개발 일지"
+title: "[개인프로젝트] Today's Pokemon - 1"
 categories: PyQt5
 tags: pyqt5 gui python pokemon pokebase pokeAPI
 ---
